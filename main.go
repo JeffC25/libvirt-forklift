@@ -2,45 +2,30 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net"
-	"time"
 
-	"github.com/digitalocean/go-libvirt"
+	"libvirt.org/go/libvirt"
 )
 
 func main() {
-	// This dials libvirt on the local machine, but you can substitute the first
-	// two parameters with "tcp", "<ip address>:<port>" to connect to libvirt on
-	// a remote machine.
-	c, err := net.DialTimeout("unix", "/var/run/libvirt/libvirt-sock", 2*time.Second)
+	conn, err := libvirt.NewConnect("qemu:///session")
 	if err != nil {
-		log.Fatalf("failed to dial libvirt: %v", err)
+		panic(err)
 	}
+	defer conn.Close()
 
-	l := libvirt.New(c)
-	if err := l.Connect(); err != nil {
-		log.Fatalf("failed to connect: %v", err)
-	}
-
-	v, err := l.Version()
+	doms, err := conn.ListAllDomains(libvirt.CONNECT_LIST_DOMAINS_ACTIVE)
 	if err != nil {
-		log.Fatalf("failed to retrieve libvirt version: %v", err)
-	}
-	fmt.Println("Version:", v)
-
-	domains, err := l.Domains()
-	if err != nil {
-		log.Fatalf("failed to retrieve domains: %v", err)
+		panic(err)
 	}
 
-	fmt.Println("ID\tName\t\tUUID")
-	fmt.Printf("--------------------------------------------------------\n")
-	for _, d := range domains {
-		fmt.Printf("%d\t%s\t%x\n", d.ID, d.Name, d.UUID)
+	fmt.Printf("%d running domains:\n", len(doms))
+	for _, dom := range doms {
+		name, err := dom.GetName()
+		if err == nil {
+			fmt.Printf("  %s\n", name)
+		}
+		dom.Free()
 	}
 
-	if err := l.Disconnect(); err != nil {
-		log.Fatalf("failed to disconnect: %v", err)
-	}
+	fmt.Println(libvirt.VERSION_NUMBER)
 }
